@@ -3,9 +3,9 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
-def search_internet(query: str, max_results: int =1) -> list[str]:
+def search_internet(query: str) -> list[str]:
     with DDGS() as ddgs:
-        return [r for r in ddgs.text(query, max_results=max_results)]
+        return [r for r in ddgs.text(query)]
     
 def fetch_website(url: str) -> Optional[str]:
     try:
