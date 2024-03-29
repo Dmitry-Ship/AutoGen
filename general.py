@@ -35,16 +35,12 @@ assistant = AssistantAgent(
 user_proxy = UserProxyAgent(
     "user_proxy", 
     code_execution_config={"work_dir": "coding", "use_docker": False},
-    human_input_mode="TERMINATE",
-#     system_message="""Replay TERMINATE if the task has been solved at full satisfaction. Otherwise, replay CONTINUE, 
-#  or the reason why the task is not solved yet.""" ,
-#     is_termination_msg=lambda x: x.get("content", "").rstrip().endswith("TERMINATE"),
+    human_input_mode="NEVER",
+    is_termination_msg=lambda x: x.get("content", "").rstrip().endswith("TERMINATE"),
 )
-
 
 while True:
     task = input("Task: ")
     if task.lower() == "quit":
         break
     user_proxy.initiate_chat(assistant, message=task, clear_history=False)
-    user_proxy.initiate_chat(assistant, message="store the result in an .md file", clear_history=False)
