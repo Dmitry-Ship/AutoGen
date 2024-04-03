@@ -5,8 +5,6 @@ from dotenv import load_dotenv
 load_dotenv()
 brave = Brave()
 
-
-
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
 user_proxy = UserProxyAgent(
@@ -14,7 +12,7 @@ user_proxy = UserProxyAgent(
     system_message="A human admin. Execute code provided by the saver.",
     code_execution_config={"work_dir": "coding", "use_docker": False},
     human_input_mode="NEVER",
-    is_termination_msg=lambda x: x.get("content", "").rstrip().endswith("TERMINATE"),
+    is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
 )
 
 searcher = AssistantAgent(

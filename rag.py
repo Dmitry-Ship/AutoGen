@@ -22,8 +22,6 @@ ragproxyagent = RetrieveUserProxyAgent(
     },
 )
 
-assistant.reset()
-
 while True:
     query = input("Enter query: ")
     ragproxyagent.initiate_chat(assistant, problem=query)

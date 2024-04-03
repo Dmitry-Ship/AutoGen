@@ -13,18 +13,17 @@ class ArtGeneration:
             "height": 768,
             "is_private": True,
             "num_inference_steps": 31,
-            "guidance_scale": 5,
+            "guidance_scale": 7,
             "scheduler_id": "d5a6df48-3f33-49e3-8936-a89c3146167b",
             "self_attention": False,
             "clip_skip": 1,
             "highres_fix": False,
-            "sharpness":5,
+            "sharpness": 2,
             "samples": 1
         } 
 
         self.user_id = None
-        result =self.authenticate()
-        print(result)
+        result = self.authenticate()
     
     def authenticate(self):
         auth_url = f"{self.url_base}/auth/email/auth"
@@ -60,8 +59,9 @@ class ArtGeneration:
         generation_id = request_response["data"]["generation_id"]
 
         start_time = time.time()
-        timeout = 60  # seconds
+        timeout = 100  # seconds
 
+        time.sleep(30) 
         while time.time() - start_time < timeout:
             time.sleep(5)  # Wait for 5 seconds before checking again
             generation_list_response = self.fetch_generation_list()
@@ -69,6 +69,7 @@ class ArtGeneration:
 
             for generation in generation_list:
                 if generation["id"] == generation_id and "image_list" in generation:
-                    return generation["image_list"][0]
+                    if len(generation["image_list"]) > 0:
+                        return generation["image_list"][0]['link']
         return "Error: Image generation timed out or not found."
 

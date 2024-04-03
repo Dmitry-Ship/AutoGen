@@ -26,9 +26,8 @@ assistant = AssistantAgent(
     If the error can't be fixed or if the task is not solved even after the code is executed successfully, analyze the problem, revisit your assumption, collect additional info you need, and think of a different approach to try.
     When you find an answer, verify the answer carefully. 
     Include verifiable evidence in your response if possible. 
+    Reply 'TERMINATE' in the end when everything is done.
     """,
-    
-    # system_message="Reply 'TERMINATE' in the end when everything is done.",
     llm_config=llm_config,
 )
 
