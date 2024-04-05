@@ -33,8 +33,8 @@ story_outliner = AssistantAgent(
     system_message="""Given a topic, write a story outline including the main characters, acts, key scenes and themes. Reply 'TERMINATE' if the task is done""",
 )
 
-writer = AssistantAgent(
-    name="writer", 
+story_writer = AssistantAgent(
+    name="story_writer", 
     llm_config={
         "config_list": config_list,
         "cache_seed": 41,
@@ -99,14 +99,14 @@ combiner = AssistantAgent(
     }, 
     human_input_mode="NEVER",
     description="Must be called last",
-    system_message="""Combine the generated image links from image_generator with the full story from writer. Images must be in the text close to the related story parts. Suggest python code (in a python coding block) or shell script (in a sh coding block) that will save everything in an .md file. Reply 'TERMINATE' if the task is done""",
+    system_message="""Combine the generated image links from image_generator with the full story from story_writer. Images must be in the text close to the related story parts. Suggest python code (in a python coding block) or shell script (in a sh coding block) that will save everything in an .md file. Reply 'TERMINATE' if the task is done""",
 )
 
 groupchat = GroupChat(
     agents=[
         user_proxy, 
         story_outliner, 
-        writer, 
+        story_writer, 
         image_generator, 
         combiner
     ],

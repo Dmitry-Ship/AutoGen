@@ -19,7 +19,6 @@ user_proxy = UserProxyAgent(
 )
 schema = db_connection.get_table_definitions_for_prompt()
 
-print(f"schema: {schema}")
 def run_query(query: Annotated[str, "The sql query to run"]) -> Annotated[str, "The result of the query"]:
     return db_connection.run_sql(query)
 

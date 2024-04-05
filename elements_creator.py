@@ -148,9 +148,26 @@ def create_arrow_dict(
     }
     return create_element_dict('ARROW', id, flip_id, 0, 0, 0, 0, properties)
 
-def refine(json_string : Annotated[str, "The json string to be refined"] ) -> Annotated[str, "The refined json string"]:
+
+def relative_position(square1, square2):
+    # Check right
+    if square2['x'] - square1['x'] == 100 and square2['y'] == square1['y']:
+        return ['RIGHT', "LEFT"]
+    # Check left
+    elif square1['x'] - square2['x'] == 100 and square2['y'] == square1['y']:
+        return ['LEFT', "RIGHT"]
+    # Check top
+    elif square2['y'] - square1['y'] == 100 and square2['x'] == square1['x']:
+        return ['TOP', "BOTTOM"]
+    # Check bottom
+    elif square1['y'] - square2['y'] == 100 and square2['x'] == square1['x']:
+        return ['BOTTOM', "TOP"]
+    else:
+        return ['RIGHT', "LEFT"]
+    
+def refine(structure : Annotated[str, "The json string to be refined"] ) -> Annotated[str, "The refined json string"]:
     # Parse the JSON string into a Python dictionary
-    data = json.loads(json_string)
+    data = json.loads(structure)
     
     # Initialize a dictionary to keep track of old IDs to new IDs mapping
     id_mapping = {}
@@ -170,26 +187,45 @@ def refine(json_string : Annotated[str, "The json string to be refined"] ) -> An
             arrow['start_element_id'] = id_mapping[arrow['start_element_id']]
         if 'end_element_id' in arrow and arrow['end_element_id'] in id_mapping:
             arrow['end_element_id'] = id_mapping[arrow['end_element_id']]
+        
+        if 'start_element_id' in arrow and  'end_element_id' in arrow:
+            start_element = None
+            end_element = None
+            for sticker in data.get('stickers', []):
+                if sticker['id'] == arrow['start_element_id']:
+                    start_element = sticker
+                    break
+            for sticker in data.get('stickers', []):
+                if sticker['id'] == arrow['end_element_id']:
+                    end_element = sticker
+                    break
+
+            if start_element and end_element:
+                positions = relative_position(start_element, end_element)
+                arrow['start_element_side'] = positions[0]
+                arrow['end_element_side'] = positions[1]
+ 
     # Convert the updated dictionary back to a JSON string
     return data
 
-def refine_and_upsert(json_string : Annotated[str, "The json string to be refined"] ) -> Annotated[str, "The result of the query"]:
-    refined = refine(json_string)
+def refine_and_upsert(structure : Annotated[str, "The json to be refined"] ) -> Annotated[str, "The result of the query"]:
+    print("REFINING ELEMENTS")
+    refined = refine(structure.replace('\"', '"'))
     print("REFINED ELEMENTS")
 
+    flip_id = refined['flip_id']
 
-    # make stickers field exists
     if 'stickers' in refined:
         stickers = refined['stickers']
         for sticker in stickers:
-            db_connection.upsert('elements', create_sticker_dict(sticker['id'], sticker['flip_id'], sticker['x'], sticker['y'], sticker['text'], sticker.get('color')))
+            db_connection.upsert('elements', create_sticker_dict(sticker['id'], flip_id, sticker['x'], sticker['y'], sticker['text'], sticker.get('color')))
         print("UPSERTED STICKERS")
 
 
     if 'texts' in refined:
         texts = refined['texts']
         for text in texts:
-            db_connection.upsert('elements', create_text_dict(text['id'], text['flip_id'], text['x'], text['y'], text['text']))
+            db_connection.upsert('elements', create_text_dict(text['id'], flip_id, text['x'], text['y'], text['text']))
         print("UPSERTED TEXTS")
     
     if 'arrows' in refined: 
@@ -197,7 +233,7 @@ def refine_and_upsert(json_string : Annotated[str, "The json string to be refine
         for arrow in arrows:
             db_connection.upsert('elements', create_arrow_dict(
                 id=create_db_id(), 
-                flip_id=arrow['flip_id'], 
+                flip_id=flip_id, 
                 startElementId=arrow['start_element_id'], 
                 startElementSide=arrow['start_element_side'], 
                 endElementId=arrow['end_element_id'], 
@@ -215,6 +251,67 @@ user_proxy = UserProxyAgent(
     code_execution_config={"work_dir": "stories", "use_docker": False},
     is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
 )
+
+
+elements_outliner = AssistantAgent(
+    name="elements_outliner", 
+    llm_config={
+        "config_list": config_list,
+        "temperature": 0.0,
+        "stream": True,
+        "cache_seed": None
+    }, 
+    human_input_mode="NEVER",
+    system_message="""
+    Given a task create elements on a 2D canvas that satisfy the task.
+    Available elements are:
+    - stickers (used as logical blocks with text) 
+    - texts (used as titles for groups of stickers)
+    - arrows (used to connect elements to show relationships)
+
+    Overall shape and structure:
+    Elements that must be created and ther relative position:
+
+    Reply 'TERMINATE' if the task is done""",
+)
+
+
+elements_creator = AssistantAgent(
+    name="elements_creator", 
+    llm_config={
+        "config_list": config_list,
+        "temperature": 0.0,
+        "stream": True,
+        "cache_seed": None
+    }, 
+    human_input_mode="NEVER",
+    system_message="""
+    Given a structure of elements, create the elements on a 2D canvas that satisfy the task.
+
+    respond in json format:
+    {
+        "flip_id": "flip_id",
+        "stickers": [{ # have width of 100 and height of 100, must have gaps around them
+            "id": "number",
+            "x": 0.0, # from 800000.0 to 800100.0, cannot be too close to other elements
+            "y": 0.0, # from 400000.0 to 400100.0
+            "text": "text"
+            "color": "#FFFFFFff" (default) | "#EE9595ff" (negative, unfinished) | "#78C99Aff" (positive, finished)
+        }, ...],
+        "texts": [{ # have height of 18 and width of 200 and must have gaps around them
+            "id": "number",
+            "x": 0.0, # from 800000.0 to 800200.0
+            "y": 0.0, # from 400000.0 to 400200.0
+            "text": "text"
+        }, ...]}
+        "arrows": [{
+            "start_element_id": "id if an element",
+            "end_element_id": "id if an element",
+        }, ...]
+    }
+    Reply 'TERMINATE' if the task is done""",
+)
+
 
 sql_runner = AssistantAgent(
     name="sql_runner", 
@@ -236,65 +333,17 @@ agentchat.register_function(
     description="upsert into database",
 )
 
-
-elements_creator = AssistantAgent(
-    name="elements_creator", 
-    llm_config={
-        "config_list": config_list,
-        "temperature": 0.0,
-        "stream": True,
-        "cache_seed": None
-    }, 
-    human_input_mode="NEVER",
-    system_message="""
-    Given a task create elements on a 2D canvas that satisfy the task.
-    Available elements are:
-    - stickers (used as logical blocks with text, they have width of 100 and height of 100) 
-    - texts (used as titles for groups of stickers, text has height of 18 and width of 200)
-    - arrows (used to connect elements to show relationships)
-
-    The result should be within these coorinates:
-    x: from 800000.0 to 800500.0 
-    y: from 400000.0 to 400250.0
-    Stickers must have gaps around them and never overlap.
-    respond in json format:
-    {
-        "stickers": [{
-            "id": "number",
-            "flip_id": "flip_id",
-            "x": 0.0,
-            "y": 0.0,
-            "text": "text"
-            "color": "#FFFFFFff" (default) | "#EE9595ff" (negative, unfinished) | "#78C99Aff" (positive, finished)
-        }, ...],
-        "texts": [{
-            "id": "number",
-            "flip_id": "flip_id",
-            "x": 0.0,
-            "y": 0.0,
-            "text": "text"
-        }, ...]}
-        "arrows": [{
-            "flip_id": "flip_id",
-            "start_element_id": "id if an element",
-            "end_element_id": "id if an element",
-            "start_element_side": "TOP" | "BOTTOM" | "LEFT" | "RIGHT", 
-            "end_element_side": "TOP" | "BOTTOM" | "LEFT" | "RIGHT"
-        }, ...]
-    }
-    Reply 'TERMINATE' if the task is done""",
-)
-
 groupchat = GroupChat(
     agents=[
         user_proxy, 
+        elements_outliner,
         elements_creator,
         sql_runner
     ],
     messages=[],
     max_round=20,
     allow_repeat_speaker=False,
-    speaker_selection_method='auto',
+    speaker_selection_method='round_robin',
 )
 
 manager = GroupChatManager(
@@ -305,12 +354,13 @@ manager = GroupChatManager(
         "temperature": 0.0,
     })
 
+flip_id = os.getenv("FLIP_ID")
 while True:
     user_proxy.reset()
-    elements_creator.reset()
+    manager.reset()
     query = input("Topic: ")
     if query.lower() == "quit":
         break
     
-    user_proxy.initiate_chat(manager, message=f"given this flip_id '018ea043-9e96-450c-49ad-ae8bcda3ea3e', create {query}")
+    user_proxy.initiate_chat(manager, message=f"given this flip_id '{flip_id}', create {query}")
 
