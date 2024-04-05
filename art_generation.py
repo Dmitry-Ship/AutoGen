@@ -13,7 +13,7 @@ class ArtGeneration:
             "height": 768,
             "is_private": True,
             "num_inference_steps": 31,
-            "guidance_scale": 7,
+            "guidance_scale": 5,
             "scheduler_id": "d5a6df48-3f33-49e3-8936-a89c3146167b",
             "self_attention": False,
             "clip_skip": 1,

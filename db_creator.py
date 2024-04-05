@@ -14,8 +14,6 @@ config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 db_connection = PostgresManager()
 db_connection.connect_with_url(os.getenv("DB_URI"))
 
-
-
 def create_db_id():
     id = ULID()
     return str(id.to_uuid())
@@ -142,7 +140,7 @@ def create_arrow_dict(
                 }
             ],
             "startDecorationType": "none",
-            "type": "straight"
+            "type": "curved"
         },
         "fillColor": "#000000ff",
         "groupId": "",
@@ -218,6 +216,27 @@ user_proxy = UserProxyAgent(
     is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
 )
 
+sql_runner = AssistantAgent(
+    name="sql_runner", 
+    llm_config={
+        "config_list": config_list,
+        "temperature": 0.0,
+        "stream": True,
+        "cache_seed": None
+    }, 
+    human_input_mode="NEVER",
+    system_message="""
+    call refine_and_upsert to upsert into database
+    Reply 'TERMINATE' if the task is done""",
+)
+agentchat.register_function(
+    refine_and_upsert,
+    caller=sql_runner,
+    executor=user_proxy,
+    description="upsert into database",
+)
+
+
 elements_creator = AssistantAgent(
     name="elements_creator", 
     llm_config={
@@ -228,28 +247,34 @@ elements_creator = AssistantAgent(
     }, 
     human_input_mode="NEVER",
     system_message="""
-    You are working with a 2D canvas. Given a task create elements that satisfy the task. The result should be within these coorinates:
-    x: from 863700.0 to 864700.0 
-    y: from 479200.0 to 480200.0
-    Elements should be have gaps between them.
+    Given a task create elements on a 2D canvas that satisfy the task.
+    Available elements are:
+    - stickers (used as logical blocks with text, they have width of 100 and height of 100) 
+    - texts (used as titles for groups of stickers, text has height of 18 and width of 200)
+    - arrows (used to connect elements to show relationships)
+
+    The result should be within these coorinates:
+    x: from 800000.0 to 800500.0 
+    y: from 400000.0 to 400250.0
+    Stickers must have gaps around them and never overlap.
     respond in json format:
     {
-        "stickers": [{ # stickers are used as logical blocks with text, they have width of 100 and height of 100. A sticker without text implies a placeholder.
+        "stickers": [{
             "id": "number",
             "flip_id": "flip_id",
             "x": 0.0,
             "y": 0.0,
             "text": "text"
-            "color": "#fff176ff" (negative, unfinished, hard) | "#FFFFFFff" (positive, finished, easy) | "#EE9595ff" (neutral) | "#78C99Aff" (default) # optional field
+            "color": "#FFFFFFff" (default) | "#EE9595ff" (negative, unfinished) | "#78C99Aff" (positive, finished)
         }, ...],
-        "texts": [{ # text elements are used as a title for groups of elements, they have height of 18 and width of 200
+        "texts": [{
             "id": "number",
             "flip_id": "flip_id",
             "x": 0.0,
             "y": 0.0,
             "text": "text"
         }, ...]}
-        "arrows": [{ # arrows are used to connect elements to show a relation between them.
+        "arrows": [{
             "flip_id": "flip_id",
             "start_element_id": "id if an element",
             "end_element_id": "id if an element",
@@ -257,35 +282,28 @@ elements_creator = AssistantAgent(
             "end_element_side": "TOP" | "BOTTOM" | "LEFT" | "RIGHT"
         }, ...]
     }
-    call refine_and_upsert to upsert the elements into the database
     Reply 'TERMINATE' if the task is done""",
 )
-agentchat.register_function(
-    refine_and_upsert,
-    caller=elements_creator,
-    executor=user_proxy,
-    description="upsert into database",
+
+groupchat = GroupChat(
+    agents=[
+        user_proxy, 
+        elements_creator,
+        sql_runner
+    ],
+    messages=[],
+    max_round=20,
+    allow_repeat_speaker=False,
+    speaker_selection_method='auto',
 )
 
-# groupchat = GroupChat(
-#     agents=[
-#         user_proxy, 
-#         elements_creator,
-#         # sql_runner
-#     ],
-#     messages=[],
-#     max_round=20,
-#     allow_repeat_speaker=False,
-#     speaker_selection_method='auto',
-# )
-
-# manager = GroupChatManager(
-#     groupchat=groupchat, 
-#     llm_config={
-#         "config_list": config_list,
-#         "stream": True,
-#         "temperature": 0.0,
-#     })
+manager = GroupChatManager(
+    groupchat=groupchat, 
+    llm_config={
+        "config_list": config_list,
+        "stream": True,
+        "temperature": 0.0,
+    })
 
 while True:
     user_proxy.reset()
@@ -294,5 +312,5 @@ while True:
     if query.lower() == "quit":
         break
     
-    user_proxy.initiate_chat(elements_creator, message=f"given this flip_id '018ea043-9e96-450c-49ad-ae8bcda3ea3e', create {query}")
+    user_proxy.initiate_chat(manager, message=f"given this flip_id '018ea043-9e96-450c-49ad-ae8bcda3ea3e', create {query}")
 

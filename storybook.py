@@ -58,8 +58,8 @@ image_generator = AssistantAgent(
     Given a story, write several movie still descriptions that can be used to generate an image. 
     Follow this pattern: [type of shot] of [adjective] [subject] [doing action], [setting], [items in the scene], [lighting], shot on [camera].
     Do not include the square brackets in the description. Avoid abstract concepts. If there is a person in the scene, always write description their age, race, gander, clothing, facial features, hair, etc.
-    List all the descriptions, than call generate_image.
-    Final output should be a in JSON format, like this: { "images": [{"link":"https://example.com/image.png", "description": "description1"}, {"link":"https://example.com/image.png", "description": "description2"}] }
+    List all the descriptions, than call generate_image for each description.
+    Final output should be a in JSON format, like this: [{"link":"https://example.com/image.png", "description": "description1"}, {"link":"https://example.com/image.png", "description": "description2"}]
     Reply 'TERMINATE' if the task is done""",
 )
 agentchat.register_function(
