@@ -8,7 +8,7 @@ from ulid import ULID
 from typing import Annotated, Optional
 import json
 
-load_dotenv()
+load_dotenv(override=True)
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
 db_connection = PostgresManager()
@@ -50,6 +50,8 @@ def create_sticker_dict(
     height: Optional[float] = 100.0,
     width: Optional[float] = 100.0,
 ) -> dict:
+    if color is None or color == "":
+        color = "#fff176ff"
     properties = {
         "fillColor": color,
         "groupId": "",
@@ -148,7 +150,6 @@ def create_arrow_dict(
     }
     return create_element_dict('ARROW', id, flip_id, 0, 0, 0, 0, properties)
 
-
 def relative_position(square1, square2):
     # Check right
     if square2['x'] - square1['x'] == 100 and square2['y'] == square1['y']:
@@ -165,47 +166,47 @@ def relative_position(square1, square2):
     else:
         return ['RIGHT', "LEFT"]
     
-def refine(structure : Annotated[str, "The json string to be refined"] ) -> Annotated[str, "The refined json string"]:
+def refine(structure: Annotated[str, "The json string to be refined"] ) -> Annotated[str, "The refined json string"]:
     # Parse the JSON string into a Python dictionary
+    print("REFINING", structure)
     data = json.loads(structure)
     
     # Initialize a dictionary to keep track of old IDs to new IDs mapping
     id_mapping = {}
+    items_mapping = {}
     
     # Update IDs in 'stickers' and 'texts', and populate the id_mapping dictionary
     for category in ['stickers', 'texts']:
-        if category in data:
-            for item in data[category]:
-                old_id = item['id']
-                new_id = create_db_id()
-                item['id'] = new_id
-                id_mapping[old_id] = new_id
-                
-    # Update 'start_element_id' and 'end_element_id' in 'arrows'
-    for arrow in data.get('arrows', []):
-        if 'start_element_id' in arrow and arrow['start_element_id'] in id_mapping:
-            arrow['start_element_id'] = id_mapping[arrow['start_element_id']]
-        if 'end_element_id' in arrow and arrow['end_element_id'] in id_mapping:
-            arrow['end_element_id'] = id_mapping[arrow['end_element_id']]
-        
-        if 'start_element_id' in arrow and  'end_element_id' in arrow:
-            start_element = None
-            end_element = None
-            for sticker in data.get('stickers', []):
-                if sticker['id'] == arrow['start_element_id']:
-                    start_element = sticker
-                    break
-            for sticker in data.get('stickers', []):
-                if sticker['id'] == arrow['end_element_id']:
-                    end_element = sticker
-                    break
+        if category not in data:
+            continue
 
-            if start_element and end_element:
-                positions = relative_position(start_element, end_element)
-                arrow['start_element_side'] = positions[0]
-                arrow['end_element_side'] = positions[1]
- 
-    # Convert the updated dictionary back to a JSON string
+        for item in data[category]:
+            old_id = item['id']
+            new_id = create_db_id()
+            item['id'] = new_id
+            id_mapping[old_id] = new_id
+            items_mapping[new_id] = item
+
+    for item in items_mapping.values():
+        if 'connects_to' in item and item['connects_to'] in id_mapping:
+            target_id = id_mapping[item['connects_to']]
+            target = items_mapping[target_id]
+            if target is None:
+                continue
+
+            positions = relative_position(item, target)
+            arrow = {
+                'start_element_id': target['id'] ,
+                'start_element_side': positions[1],
+                'end_element_id': item['id'],
+                'end_element_side': positions[0]
+            }
+
+            if 'arrows' not in data:
+                data['arrows'] = [arrow]
+            else:
+                data['arrows'].append(arrow) 
+
     return data
 
 def refine_and_upsert(structure : Annotated[str, "The json to be refined"] ) -> Annotated[str, "The result of the query"]:
@@ -265,13 +266,10 @@ elements_outliner = AssistantAgent(
     system_message="""
     Given a task create elements on a 2D canvas that satisfy the task.
     Available elements are:
-    - stickers (used as logical blocks with text) 
-    - texts (used as titles for groups of stickers)
-    - arrows (used to connect elements to show relationships)
+    - stickers (used as logical blocks with text, can have arrows to show connections) 
+    - texts (used as titles for groups of stickers, usually on top of the stickers)
 
-    Overall shape and structure:
-    Elements that must be created and ther relative position:
-
+    Drow it in ACII
     Reply 'TERMINATE' if the task is done""",
 )
 
@@ -286,16 +284,17 @@ elements_creator = AssistantAgent(
     }, 
     human_input_mode="NEVER",
     system_message="""
-    Given a structure of elements, create the elements on a 2D canvas that satisfy the task.
+    Given a structure of elements, create the elements on a 2D canvas that satisfy the task. All elements must be evenly spaced in available coordinates.
 
     respond in json format:
     {
         "flip_id": "flip_id",
-        "stickers": [{ # have width of 100 and height of 100, must have gaps around them
+        "stickers": [{ # have width of 100 and height of 100, 
             "id": "number",
-            "x": 0.0, # from 800000.0 to 800100.0, cannot be too close to other elements
+            "x": 0.0, # from 800000.0 to 800100.0
             "y": 0.0, # from 400000.0 to 400100.0
-            "text": "text"
+            "text": "text",
+            "connects_to": "id of another sticker", # optional, use to draw and arrow to show relationship, dependency or progress
             "color": "#FFFFFFff" (default) | "#EE9595ff" (negative, unfinished) | "#78C99Aff" (positive, finished)
         }, ...],
         "texts": [{ # have height of 18 and width of 200 and must have gaps around them
@@ -304,31 +303,13 @@ elements_creator = AssistantAgent(
             "y": 0.0, # from 400000.0 to 400200.0
             "text": "text"
         }, ...]}
-        "arrows": [{
-            "start_element_id": "id if an element",
-            "end_element_id": "id if an element",
-        }, ...]
     }
-    Reply 'TERMINATE' if the task is done""",
-)
-
-
-sql_runner = AssistantAgent(
-    name="sql_runner", 
-    llm_config={
-        "config_list": config_list,
-        "temperature": 0.0,
-        "stream": True,
-        "cache_seed": None
-    }, 
-    human_input_mode="NEVER",
-    system_message="""
-    call refine_and_upsert to upsert into database
+    pass the json to refine_and_upsert
     Reply 'TERMINATE' if the task is done""",
 )
 agentchat.register_function(
     refine_and_upsert,
-    caller=sql_runner,
+    caller=elements_creator,
     executor=user_proxy,
     description="upsert into database",
 )
@@ -338,7 +319,6 @@ groupchat = GroupChat(
         user_proxy, 
         elements_outliner,
         elements_creator,
-        sql_runner
     ],
     messages=[],
     max_round=20,
@@ -354,8 +334,8 @@ manager = GroupChatManager(
         "temperature": 0.0,
     })
 
-flip_id = os.getenv("FLIP_ID")
 while True:
+    flip_id = os.getenv("FLIP_ID")
     user_proxy.reset()
     manager.reset()
     query = input("Topic: ")
