@@ -9,8 +9,8 @@ class ArtGeneration:
         self.password = password
         self.base_data = {
             "model_id": model_id,
-            "width": 1280,
-            "height": 768,
+            "width": 1216,
+            "height": 832,
             "is_private": True,
             "num_inference_steps": 31,
             "guidance_scale": 5,
@@ -31,13 +31,16 @@ class ArtGeneration:
             "email": self.email,
             "password": self.password
         }
+        print("Authenticating into ArtGeneration...")
         response = requests.post(auth_url, json=auth_data).json()
         
         if "data" in response and "user" in response["data"]:
             self.base_data["token"] = response["data"]["user"]["token"]
             self.user_id = response["data"]["user"]["id"]
+            print("Authentication Successful")
             return True, "Authentication Successful"
         else:
+            print("Authentication Failed")
             return False, "Authentication Failed"
     def send_request(self, prompt):
         data = self.base_data.copy()
