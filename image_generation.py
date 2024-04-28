@@ -6,7 +6,7 @@ config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 user_proxy = UserProxyAgent(
     name="Admin",
     system_message="A human admin.",
-    code_execution_config={"work_dir": "stories", "use_docker": False},
+    code_execution_config=False,
     human_input_mode="NEVER",
     is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
 )
@@ -20,7 +20,7 @@ prompt_generator = AssistantAgent(
         "temperature": 1.0,
     }, 
     system_message="""Given a topic, write an image description.
-Follow this pattern: [type of shot] of [subject], [setting], [items in the scene], [lighting], shot by [camera]
+Follow this pattern: [type of shot] of [subject], [setting], [items in the scene], [lighting], shot on [camera]
 Reply 'TERMINATE' if the task is done""",
 )
     
@@ -49,8 +49,7 @@ groupchat = GroupChat(
         image_generator,
     ],
     messages=[],
-    max_round=20,
-    # allow_repeat_speaker=False,
+    max_round=10,
     speaker_selection_method="auto",
 )
 

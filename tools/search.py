@@ -28,11 +28,10 @@ def search_internet(query: Annotated[str, "The query to search for"]) -> Annotat
     for url in response.urls:
         print("🌐 scraping ", url)
         content = scrape_page(url)
-        print("✅ scraping complete")
         if len(content) > 10000:
-            print("📝 summarizing", url)
+            print("📝 content too long, summarizing", url)
             content = get_summary(str(url), content, query)
-            print("✅ summarizing complete")
+        print("✅ scraping complete")
         answer += f"content from url:{url}: \n {content} \n\n"
 
     return answer

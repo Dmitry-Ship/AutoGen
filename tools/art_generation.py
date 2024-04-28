@@ -1,3 +1,4 @@
+from typing_extensions import Annotated
 from urllib.parse import urlparse
 import requests
 from infra.art_generation import ArtGeneration
@@ -34,7 +35,12 @@ def download_image(url):
     else:
         print(f"Failed to retrieve the image. Status code: {response.status_code}")
         
-def generate_image(prompt: str) -> str:
+def generate_image(prompt: Annotated[str, "Prompt"]) -> str:
+    print("✨ Generating image ...")
     image_url = art_generation.generate_image(prompt)
+    print("✅ Generating image complete")
+
+    print("📸 Downloading image ...")
     download_image(image_url)
+    print("✅ Downloading image complete")
     return image_url

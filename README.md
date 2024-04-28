@@ -1,8 +1,14 @@
 # AutoGen
 
-## ⚡️ Quick Start
+## Install
 
-1. create a file `OAI_CONFIG_LIST` and specify your model config
+```
+pip install -r requirements.txt
+```
+
+## Environment variables
+
+1. create a  `OAI_CONFIG_LIST` file and specify your model config
 
 example:
 
@@ -15,7 +21,7 @@ example:
 ]
 ```
 
-2. 
+2. Create a `.env` file
 
 ```
 ART_GENERATION_EMAIL=qwerty
@@ -25,17 +31,20 @@ BRAVE_API_KEY=qwerty
 DB_URI=postgresql://<user>:<password>@<host>:<port>/<database>
 ```
 
-2. scrpts
-
-
-```
-python storybook.py
-```
+## Commands
 
 ```
-python db.py
+python image_generation.py
 ```
 
 ```
-python db_writer.py
+python research.py
+```
+
+```
+python analyst.py
+```
+
+```
+python elements_creator.py
 ```
