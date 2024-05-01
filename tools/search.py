@@ -21,18 +21,23 @@ llm_config = {
 recur_spliter = RecursiveCharacterTextSplitter(separators=["\n", "\r", "\t"])
 
 def search_internet(query: Annotated[str, "The query to search for"]) -> Annotated[str, "The answer to the query"]:
-    print("🔍 searching brave ...")
+    print("🔍 searching ...")
     response = brave.search(q=query, count=5)
-    print("✅ searching brave complete")
+    urls_list = [str(url) for url in response.urls]
+    for i, url in enumerate(urls_list):
+        print(f"✅ search result {i+1}: {url}")
     answer = """"""
     for url in response.urls:
         print("🌐 scraping ", url)
-        content = scrape_page(url)
-        if len(content) > 10000:
+        status, content = scrape_page(url)
+        if status == 1:
+            print("❌ scraping failed")
+            continue
+        if len(content) > 1000:
             print("📝 content too long, summarizing", url)
             content = get_summary(str(url), content, query)
         print("✅ scraping complete")
-        answer += f"content from url:{url}: \n {content} \n\n"
+        answer += f"Here is content from {url} : \n {content} \n\n"
 
     return answer
 
@@ -45,7 +50,7 @@ def get_summary(url, text, question):
 
     assistant = RetrieveAssistantAgent(
         name="assistant",
-        system_message="You are a helpful assistant. Reply 'TERMINATE' if the task is done",
+        system_message="You are a helpful assistant",
         human_input_mode="NEVER",
         llm_config=llm_config,
     )
@@ -54,7 +59,8 @@ def get_summary(url, text, question):
     ragproxyagent = RetrieveUserProxyAgent(
         name="ragproxyagent",
         code_execution_config=False,
-        is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
+        human_input_mode="NEVER",
+        # is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
         retrieve_config={
             "task": "qa",
             "docs_path": f"rag_temp/{url_hash}.txt",
@@ -66,13 +72,17 @@ def get_summary(url, text, question):
     response = ragproxyagent.initiate_chat(assistant, message=ragproxyagent.message_generator, problem=question)
     return response.chat_history[-1]['content']
 
-def scrape_page(url: Annotated[str, "The url to scrape"]) -> Annotated[str, "The text from the url"]:
-    response = requests.get(url)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        text = soup.get_text(separator=' ', strip=True)
-        return text
-    else:
-        return "Failed to retrieve the webpage. Status code: {}".format(response.status_code)
+def scrape_page(url: Annotated[str, "The url to scrape"]) -> Annotated[tuple[int, str], "The text from the url"]:
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            text = soup.get_text(separator=' ', strip=True)
+            return 0, text
+        else:
+            return 1, "Failed to retrieve the webpage. Status code: {}".format(response.status_code)
+    except:
+        return 1, "Failed to retrieve the webpage"
+
     
 

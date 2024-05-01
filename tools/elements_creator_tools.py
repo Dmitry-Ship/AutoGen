@@ -6,6 +6,7 @@ import os
 from ulid import ULID
 from typing import Annotated, Optional
 import json
+import re
 
 load_dotenv(override=True)
 
@@ -242,10 +243,10 @@ def refine(structure: Annotated[str, "The json string to be refined"] ) -> Annot
 
             positions = relative_position(item, target,)
             arrow = {
-                'start_element_id':  target['id'],
+                'start_element_id':  item['id'],
                 'start_element_side': positions[1],
-                'end_element_id': item['id'],
-                'end_element_side': positions[0] 
+                'end_element_id': target['id'],
+                'end_element_side':  positions[0]
             }
 
             if 'arrows' not in data:
@@ -255,12 +256,10 @@ def refine(structure: Annotated[str, "The json string to be refined"] ) -> Annot
 
     return data
 
-def refine_and_upsert(structure : Annotated[str, "The json to be refined"] ) -> Annotated[str, "The result of the query"]:
+def refine_and_upsert(structure : Annotated[str, "The json to be refined"], flip_id) -> Annotated[str, "The result of the query"]:
     print("REFINING ELEMENTS")
     refined = refine(structure.replace('\"', '"'))
     print("REFINED ELEMENTS")
-
-    flip_id = refined['flip_id']
 
     if 'stickers' in refined:
         stickers = refined['stickers']
@@ -303,3 +302,87 @@ def refine_and_upsert(structure : Annotated[str, "The json to be refined"] ) -> 
     return 'OK'
 
 
+
+def parse_markdown(md_text):
+    lines = md_text.strip().split('\n')
+    mind_map = []
+    path = []
+    depth_count = {}  # Dictionary to count the number of items at each depth
+
+    # Canvas settings
+    canvas_width = 1000
+    canvas_height = 500
+    root_x = canvas_width // 2
+    root_y = canvas_height // 2
+
+    root_found = False
+
+    for line in lines:
+        if line.strip().startswith('#') and not root_found:
+            root_content = clean_text(line.strip('# ').strip())
+            root_sticker = {
+                "id": len(mind_map) + 1,
+                "text": root_content,
+                "x": root_x,
+                "y": root_y,
+                "color": "#EE9595ff",
+                "height": 100,
+                "width": 100,
+            }
+            mind_map.append(root_sticker)
+            path.append(root_sticker)
+            depth_count[0] = 1  # Initialize root level count
+            root_found = True
+            continue
+
+        if not line.strip().startswith('-'):
+            continue
+
+        match = re.match(r"(\s*)-", line)
+        if not match:
+            continue
+
+        level = len(match.group(1)) // 4 + 1
+
+        if level < len(path):
+            path = path[:level]
+
+        parent_id = path[-1]['id'] if path and level > 0 else None
+
+        if level not in depth_count:
+            depth_count[level] = 0
+
+        # Adjust spacing to fit within canvas
+        x_increment = 150  # Adjusted horizontal shift
+        y_spacing = 60  # Adjusted vertical spacing
+
+        content = clean_text(line.strip())
+        sticker = {
+            "id": len(mind_map) + 1,
+            "text": content,
+            "x": root_x + (level * x_increment * (-1 if depth_count[level] % 2 else 1)),
+            "y": root_y + (depth_count[level] * y_spacing * (-1 if depth_count[level] % 2 else 1)),
+            "color": "#F2BD8Dff" if level == 1 else "#fff176ff" if level == 2 else "#78C99Aff" if level == 3 else "#FFFFFFff",
+            "height": 100,
+            "width": 100,
+        }
+
+        if parent_id:
+            sticker['points_to'] = parent_id
+
+        mind_map.append(sticker)
+        path.append(sticker)
+        depth_count[level] += 1
+
+    return mind_map
+
+def clean_text(text):
+    # Removes markdown symbols used for formatting
+    return re.sub(r"[\*\_\-]+", "", text)
+
+def markdown_to_json(md_text):
+    mind_map = parse_markdown(md_text)
+    return json.dumps({"stickers": mind_map}, indent=4)
+
+def upsert_mindmap(markdown: Annotated[str, "The markdown to be upserted"], flip_id: Annotated[str, "Flip id"]) -> Annotated[str, "The result of the query"]:
+    return refine_and_upsert(markdown_to_json(markdown), flip_id)

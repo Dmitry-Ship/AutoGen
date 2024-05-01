@@ -12,7 +12,7 @@ art_generation = ArtGeneration(
     password=os.getenv("ART_GENERATION_PASSWORD"),
 )
 
-def download_image(url):
+def download_image(url) -> tuple[int, str]:
     # Parse the URL and extract the filename
     parsed_url = urlparse(url)
     filename = os.path.basename(parsed_url.path)
@@ -31,16 +31,25 @@ def download_image(url):
             # Write the contents of the response to the file
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
-        print(f"Image saved as {filename}")
+        0, f"Image saved as {filename}"
     else:
-        print(f"Failed to retrieve the image. Status code: {response.status_code}")
+        1, print(f"Failed to retrieve the image. Status code: {response.status_code}")
         
 def generate_image(prompt: Annotated[str, "Prompt"]) -> str:
     print("✨ Generating image ...")
-    image_url = art_generation.generate_image(prompt)
-    print("✅ Generating image complete")
+    status, image_url = art_generation.generate_image(prompt)
+    if status == 1:
+        print("❌ Generating image failed")
+        return None
+    else:
+        print("✅ Generating image complete")
 
     print("📸 Downloading image ...")
-    download_image(image_url)
-    print("✅ Downloading image complete")
+    status, message = download_image(image_url)
+    if status == 1:
+        print("❌ Downloading image failed", message)
+        return None
+    else:
+        print("✅ Downloading image complete")
+
     return image_url

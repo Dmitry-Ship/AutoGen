@@ -57,7 +57,7 @@ class ArtGeneration:
         response = requests.get(f"{self.url_base}/v1/image/fetch/", params=params)
         return response.json()
 
-    def generate_image(self, prompt: Annotated[str, "Prompt"]) -> Annotated[Dict[str, any], "Image info"]:
+    def generate_image(self, prompt: Annotated[str, "Prompt"]) -> Annotated[tuple[int, str], "Status code and message"]:
         request_response = self.send_request(prompt)
         generation_id = request_response["data"]["generation_id"]
 
@@ -73,6 +73,6 @@ class ArtGeneration:
             for generation in generation_list:
                 if generation["id"] == generation_id and "image_list" in generation:
                     if len(generation["image_list"]) > 0:
-                        return generation["image_list"][0]['link']
-        return "Error: Image generation timed out or not found."
+                        return 0, generation["image_list"][0]['link']
+        return 1, "Error: Image generation timed out or not found."
 
