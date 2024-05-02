@@ -1,88 +1,19 @@
-import hashlib
-from bs4 import BeautifulSoup
-import requests
 from typing_extensions import Annotated
 from dotenv import load_dotenv
-from brave import Brave
-from autogen.agentchat.contrib.retrieve_assistant_agent import RetrieveAssistantAgent
-from autogen.agentchat.contrib.retrieve_user_proxy_agent import RetrieveUserProxyAgent
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from autogen import config_list_from_json
+from tavily import TavilyClient
+import os
+
 load_dotenv()
-brave = Brave()
-
-config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
-llm_config = {
-    "config_list": config_list,
-    "cache_seed": None,
-    "stream": False,
-}
-
-recur_spliter = RecursiveCharacterTextSplitter(separators=["\n", "\r", "\t"])
+tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 def search_internet(query: Annotated[str, "The query to search for"]) -> Annotated[str, "The answer to the query"]:
     print("🔍 searching ...")
-    response = brave.search(q=query, count=5)
-    urls_list = [str(url) for url in response.urls]
-    for i, url in enumerate(urls_list):
-        print(f"✅ search result {i+1}: {url}")
-    answer = """"""
-    for url in response.urls:
-        print("🌐 scraping ", url)
-        status, content = scrape_page(url)
-        if status == 1:
-            print("❌ scraping failed")
-            continue
-        if len(content) > 1000:
-            print("📝 content too long, summarizing", url)
-            content = get_summary(str(url), content, query)
-        print("✅ scraping complete")
-        answer += f"Here is content from {url} : \n {content} \n\n"
+    response = tavily.search(query=query, search_depth="advanced")
+    context = [{"url": obj["url"], "content": obj["content"]} for obj in response['results']]
 
-    return answer
+    return context
+    # return """[{"url": "https://www.marvel.com/movies", "content": "Endgame\n2019\nCaptain Marvel\n2019\nAnt-Man and The Wasp\n2018\nAvengers: Infinity War\n2018\nBlack Panther\n2018\nThor: Ragnarok\n2017\nSpider-Man: Homecoming\n2017\nGuardians of the Galaxy Vol. 2\n2017\nDoctor Strange\n2016\nCaptain America: Civil War\n2016\nAnt-Man\n2015\nAvengers: Age of Ultron\n2015\nGuardians of the Galaxy\n2014\nCaptain America: The Winter Soldier\n2014\nThor: The Dark World\n2013\nIron Man 3\n2013\n The Avengers\n2012\nCaptain America: The First Avenger\n2011\nOther Movies\nX-Men: Dark Phoenix\n2019\nVenom\n2018\nDeadpool 2\n2018\nLogan\n2017\nX-Men: Apocalypse\n2016\nDeadpool\n2016\nX-Men: Days of Future Past\n2014\nThe Amazing Spider-Man\n2012\nSpider-Man 3\n2007\nSpider-Man 2\n2004\nSpider-Man\n2002\nMARVEL MUSIC PLAYLIST\nGet Rewarded for Being a Marvel Fan\nAccess Over 30,000+ Digital Comics Doctor Strange in the Multiverse of Madness\n2022\nSpider-Man: No Way Home\n2021\nEternals\n2021\nShang-Chi and The Legend of The Ten Rings\n2021\nBlack Widow\n2021\nSpider-Man: Far From Home\n2019\nAvengers: The Marvels\n2023\nGuardians of the Galaxy Vol. 3\n2023\nAnt-Man and The Wasp: Quantumania\n2023\nBlack Panther: Blade\nNOV 7, 2025\nThunderbolts\nJUL 25, 2025\nFantastic Four\nMAY 2, 2025\nCaptain America:"}]"""
 
-
-def get_summary(url, text, question):
-    url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
-    # save text to file
-    with open(f"rag_temp/{url_hash}.txt", "w") as f:
-        f.write(text)  
-
-    assistant = RetrieveAssistantAgent(
-        name="assistant",
-        system_message="You are a helpful assistant",
-        human_input_mode="NEVER",
-        llm_config=llm_config,
-    )
-    # assistant.reset()
-
-    ragproxyagent = RetrieveUserProxyAgent(
-        name="ragproxyagent",
-        code_execution_config=False,
-        human_input_mode="NEVER",
-        # is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
-        retrieve_config={
-            "task": "qa",
-            "docs_path": f"rag_temp/{url_hash}.txt",
-            "collection_name": url_hash, 
-            "custom_text_split_function": recur_spliter.split_text,
-        },
-    )
-
-    response = ragproxyagent.initiate_chat(assistant, message=ragproxyagent.message_generator, problem=question)
-    return response.chat_history[-1]['content']
-
-def scrape_page(url: Annotated[str, "The url to scrape"]) -> Annotated[tuple[int, str], "The text from the url"]:
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            text = soup.get_text(separator=' ', strip=True)
-            return 0, text
-        else:
-            return 1, "Failed to retrieve the webpage. Status code: {}".format(response.status_code)
-    except:
-        return 1, "Failed to retrieve the webpage"
 
     
 

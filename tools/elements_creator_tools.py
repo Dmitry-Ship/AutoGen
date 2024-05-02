@@ -215,7 +215,6 @@ def relative_position(square1, square2):
 
 def refine(structure: Annotated[str, "The json string to be refined"] ) -> Annotated[str, "The refined json string"]:
     # Parse the JSON string into a Python dictionary
-    print("REFINING", structure)
     data = json.loads(structure)
     
     # Initialize a dictionary to keep track of old IDs to new IDs mapping
@@ -256,27 +255,22 @@ def refine(structure: Annotated[str, "The json string to be refined"] ) -> Annot
 
     return data
 
-def refine_and_upsert(structure : Annotated[str, "The json to be refined"], flip_id) -> Annotated[str, "The result of the query"]:
-    print("REFINING ELEMENTS")
-    refined = refine(structure.replace('\"', '"'))
-    print("REFINED ELEMENTS")
-
+def upsert(refined : Annotated[dict, "The json to be refined"], flip_id) -> Annotated[str, "The result of the query"]:
     if 'stickers' in refined:
         stickers = refined['stickers']
+        print("💿 upserting stickers")
         for sticker in stickers:
             db_connection.upsert('elements', create_sticker_dict(sticker['id'], flip_id, sticker['x'], sticker['y'], sticker['text'], sticker.get('color')))
-        print("UPSERTED STICKERS")
-
 
     if 'texts' in refined:
         texts = refined['texts']
+        print("💿 upserting texts")
         for text in texts:
             db_connection.upsert('elements', create_text_dict(text['id'], flip_id, text['x'], text['y'], text['text']))
-        print("UPSERTED TEXTS")
     
     if 'drawing' in refined: 
         drawing = refined['drawing']
-
+        print("💿 upserting drawing")
         db_connection.upsert('elements', create_drawing_dict(
             id=create_db_id(), 
             flip_id=flip_id, 
@@ -284,10 +278,10 @@ def refine_and_upsert(structure : Annotated[str, "The json to be refined"], flip
             x=drawing['x'], 
             y=drawing['y'], 
         ))
-        print("UPSERTED ARROWS")
     
     if 'arrows' in refined: 
         arrows = refined['arrows']
+        print("💿 upserting arrows")
         for arrow in arrows:
             db_connection.upsert('elements', create_arrow_dict(
                 id=create_db_id(), 
@@ -297,7 +291,6 @@ def refine_and_upsert(structure : Annotated[str, "The json to be refined"], flip
                 endElementId=arrow['end_element_id'], 
                 endElementSide=arrow['end_element_side'])
             )
-        print("UPSERTED ARROWS")
 
     return 'OK'
 
@@ -374,15 +367,14 @@ def parse_markdown(md_text):
         path.append(sticker)
         depth_count[level] += 1
 
-    return mind_map
+    return json.dumps({"stickers": mind_map}, indent=4)
 
 def clean_text(text):
     # Removes markdown symbols used for formatting
     return re.sub(r"[\*\_\-]+", "", text)
 
-def markdown_to_json(md_text):
-    mind_map = parse_markdown(md_text)
-    return json.dumps({"stickers": mind_map}, indent=4)
-
 def upsert_mindmap(markdown: Annotated[str, "The markdown to be upserted"], flip_id: Annotated[str, "Flip id"]) -> Annotated[str, "The result of the query"]:
-    return refine_and_upsert(markdown_to_json(markdown), flip_id)
+    json_string = parse_markdown(markdown)
+    refined = refine(json_string.replace('\"', '"'))
+
+    return upsert(refined, flip_id)

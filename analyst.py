@@ -11,11 +11,11 @@ db_connection = PostgresManager()
 db_connection.connect_with_url(os.getenv("DB_URI"))
 
 user_proxy = UserProxyAgent(
-    name="Admin",
+    name="User",
     system_message="A human admin. Execute provided code",
     code_execution_config={"work_dir": "stories", "use_docker": False},
     human_input_mode="NEVER",
-    is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
+    is_termination_msg=lambda x: "content" in x and x["content"] is not None and x["content"].rstrip().endswith("TERMINATE")
 )
 schema = db_connection.get_table_definitions_for_prompt()
 
@@ -68,12 +68,11 @@ manager = GroupChatManager(
     groupchat=groupchat, 
     llm_config={
         "config_list": config_list,
-        "stream": True,
         "temperature": 0.0,
     })
 
 while True:
-    query = input("📈: ")
+    query = input("analyst 📈: ")
     if query.lower() == "quit":
         break
 

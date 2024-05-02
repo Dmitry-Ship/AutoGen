@@ -4,11 +4,11 @@ from tools.art_generation import generate_image
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
 user_proxy = UserProxyAgent(
-    name="Admin",
+    name="User",
     system_message="A human admin.",
     code_execution_config=False,
     human_input_mode="NEVER",
-    is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
+    is_termination_msg=lambda x: "content" in x and x["content"] is not None and x["content"].rstrip().endswith("TERMINATE")
 )
 
 prompt_generator = AssistantAgent(
@@ -16,7 +16,7 @@ prompt_generator = AssistantAgent(
     llm_config={
         "config_list": config_list,
         "cache_seed": None,
-        "stream": True,
+        # "stream": True,
         "temperature": 1.0,
     }, 
     system_message="""Given a topic, write an image description.
@@ -29,7 +29,7 @@ image_generator = AssistantAgent(
     llm_config={
         "config_list": config_list,
         "cache_seed": None,
-        "stream": True,
+        # "stream": True,
         "temperature": 0.0,
     }, 
     human_input_mode="NEVER",
@@ -50,7 +50,8 @@ groupchat = GroupChat(
     ],
     messages=[],
     max_round=10,
-    speaker_selection_method="auto",
+    allow_repeat_speaker=False,
+    speaker_selection_method="round_robin",
 )
 
 manager = GroupChatManager(
@@ -66,7 +67,7 @@ while True:
     if topic.lower() == "quit":
         break
 
-    user_proxy.initiate_chat(manager, message=f"""{topic} """)
+    user_proxy.initiate_chat(manager, message=topic)
 
 
 

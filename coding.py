@@ -1,12 +1,12 @@
 from autogen import config_list_from_json, GroupChat, AssistantAgent, UserProxyAgent, GroupChatManager, agentchat
 from dotenv import load_dotenv
-from tools.coding import see_file, list_dir, create_file_with_code, modify_code, default_path
+from tools.coding import see_file, list_dir, create_file_with_code, modify_code
 
 load_dotenv(override=True)
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
 user_proxy = UserProxyAgent(
-    name="Admin",
+    name="User",
     system_message="A human admin.",
     human_input_mode="ALWAYS",
     code_execution_config=False,

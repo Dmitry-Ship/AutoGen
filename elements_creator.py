@@ -1,19 +1,18 @@
 
-from autogen import config_list_from_json, GroupChat, AssistantAgent, UserProxyAgent, GroupChatManager, agentchat
-from dotenv import load_dotenv
+from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
 from tools.elements_creator_tools import upsert_mindmap
+from dotenv import load_dotenv
 import os
 
 load_dotenv(override=True)
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
-
 user_proxy = UserProxyAgent(
-    name="Admin",
+    name="User",
     system_message="A human admin.",
     human_input_mode="NEVER",
     code_execution_config={"work_dir": "stories", "use_docker": False},
-    is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
+    is_termination_msg=lambda x: "content" in x and x["content"] is not None and x["content"].rstrip().endswith("TERMINATE")
 )
 
 mindmap_creator = AssistantAgent(
@@ -21,7 +20,7 @@ mindmap_creator = AssistantAgent(
     llm_config={
         "config_list": config_list,
         "temperature": 0.0,
-        "stream": True,
+        # "stream": True,
         "cache_seed": None
     }, 
     human_input_mode="NEVER",
@@ -49,33 +48,12 @@ agentchat.register_function(
     description="upsert into database",
 )
 
-groupchat = GroupChat(
-    agents=[
-        user_proxy, 
-        mindmap_creator,
-        # elements_creator,
-    ],
-    messages=[],
-    max_round=20,
-    allow_repeat_speaker=False,
-    speaker_selection_method='round_robin',
-)
-
-manager = GroupChatManager(
-    groupchat=groupchat, 
-    llm_config={
-        "config_list": config_list,
-        "stream": True,
-        "temperature": 0.0,
-    })
+flip_id = os.getenv("FLIP_ID")
 
 while True:
-    flip_id = os.getenv("FLIP_ID")
-    user_proxy.reset()
-    manager.reset()
-    query = input("Topic: ")
+    query = input("mindmap 🗺️: ")
     if query.lower() == "quit":
         break
     
-    user_proxy.initiate_chat(manager, message=f"flip_id: '{flip_id}', context: {query}")
+    user_proxy.initiate_chat(mindmap_creator, message=f"flip_id: '{flip_id}', context: {query}")
 
