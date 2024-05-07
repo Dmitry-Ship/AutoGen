@@ -1,8 +1,7 @@
 import json
 import tempfile
 from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
-import inquirer
-from tools.analyst_tools import run_query, get_schema
+from .tools import run_query, get_schema
 from autogen.coding import LocalCommandLineCodeExecutor
 
 temp_dir = tempfile.TemporaryDirectory()
@@ -92,32 +91,5 @@ def get_suggestions():
     last_message = suggester_user.last_message()['content'].replace("TERMINATE", "").strip()
     data = json.loads(last_message)
     return data['suggestions']
-
-while True:
-    suggestions = get_suggestions()
-    answers = inquirer.prompt([
-        inquirer.List(
-            'choice',
-            message="Here are some suggestions:",
-            choices=suggestions + ["other"],
-            carousel=True
-        )
-    ])
-    query = answers['choice']
-
-    if query == 'other':
-        query = input("mindmap 🗺️: ")
-
-    user_proxy.initiate_chats([
-        {
-            "recipient": analyst,
-            "message": query,
-            "max_turns": 3,
-        },
-        {
-            "recipient": graph_creator,
-            "message": "initial query: " + query,
-        },
-    ])
 
 

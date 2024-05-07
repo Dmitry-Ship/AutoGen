@@ -1,4 +1,4 @@
-from typing_extensions import Annotated
+from typing import Annotated
 from infra.postgres import PostgresManager
 from dotenv import load_dotenv
 import os

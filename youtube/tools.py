@@ -1,7 +1,7 @@
 import re
 from youtube_transcript_api import YouTubeTranscriptApi
-from typing_extensions import Annotated
-from .common import get_summary
+from typing import Annotated
+from ..common_tools.common_tools import get_summary
 
 def retreive_youtube_transcription(youtube_url: Annotated[str, "The youtube url to retreive transcriptions from"]) -> Annotated[str, "The combined transcript"]:
     """

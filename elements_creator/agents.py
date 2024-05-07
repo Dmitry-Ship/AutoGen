@@ -1,7 +1,6 @@
-
 import json
 from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
-from tools.elements_creator_tools import upsert_mindmap, get_all_text_from_flip, parse_mindmap_markdown
+from .tools import upsert_mindmap, get_all_text_from_flip, parse_mindmap_markdown
 from dotenv import load_dotenv
 import os
 import inquirer
@@ -100,27 +99,3 @@ def get_suggestions(flip_id):
     last_message = suggester_user.last_message()['content'].replace("TERMINATE", "").strip()
     data = json.loads(last_message)
     return data['suggestions']
-
-flip_id = os.getenv("FLIP_ID")
-
-
-while True:
-    suggestions = get_suggestions(flip_id=flip_id)
-    answers = inquirer.prompt([
-        inquirer.List(
-            'choice',
-            message="Here are some suggestions:",
-            choices=suggestions + ["other"],
-            carousel=True
-        )
-    ])
-    query = answers['choice']
-
-    if query == 'other':
-        query = input("mindmap 🗺️: ")
-
-    user_proxy.initiate_chat(
-        mindmap_creator,
-        message=f"flip_id: '{flip_id}', context: {query}"
-    )
-

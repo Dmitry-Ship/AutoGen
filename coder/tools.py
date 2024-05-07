@@ -1,4 +1,4 @@
-from typing_extensions import Annotated
+from typing import Annotated
 import os
 
 default_path = "test_app/"

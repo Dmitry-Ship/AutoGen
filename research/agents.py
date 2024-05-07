@@ -1,8 +1,6 @@
-import json
 from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
-from tools.search import search_internet
-import inquirer
-from typing_extensions import Annotated
+from .tools import search_internet, ask_context
+from typing import Annotated
 
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
@@ -57,7 +55,7 @@ search_query_suggester = AssistantAgent(
         "temperature": 0.0,
     }, 
     system_message="""
-    Based on the provided information, suggest three search queries that progressivly delve deeper into the subject. 
+    Based on the provided information, suggest three followup search queries that progressivly delve deeper into the subject. 
     Respond in JSON and nothing else:
     {
         "related": ["query_1", "query_2", "query_3"]
@@ -66,10 +64,6 @@ search_query_suggester = AssistantAgent(
     Write the word 'TERMINATE' at the end of the response if the task is done.
 """,
 )
-
-def ask_context(question: Annotated[str, "Question to specify context"]) -> Annotated[str, "Additional context"]:
-    additional_query = input("❓ " + question + ": ")
-    return additional_query
 
 context_updater = AssistantAgent(
     name="context_updater", 
@@ -93,14 +87,8 @@ agentchat.register_function(
     executor=user_proxy,
     description="Ask for additional information",
 )
-selected_suggestion = None
 
-while True:
-    if selected_suggestion is None:
-        query = input("search 🔍: ")
-    else:
-        query = selected_suggestion
-
+def search(query: Annotated[str, "The query to search for"]) -> Annotated[str, "The answer to the query"]:
     user_proxy.initiate_chats([
         {
             "recipient": context_updater,
@@ -117,33 +105,30 @@ while True:
             "message": "write a good summary",
             "max_turns": 1,
         },
-        {
-            "recipient": search_query_suggester,
-            "message": "what other queries might be relevant?",
-            "max_turns": 1,
-        },
     ])
+        
+    return user_proxy.last_message(writer)['content'].replace("TERMINATE", "").strip()
 
-    last_message = user_proxy.last_message(search_query_suggester)['content'].replace("TERMINATE", "").strip()
-    data = json.loads(last_message)
-    suggestions = data['related']
-
-    choice = inquirer.prompt([
-        inquirer.List(
-            'choice',
-            message="Here are some suggestions:",
-            choices=suggestions + ["other"],
-            carousel=True
-        )
-    ])
-
-    query = choice['choice']
-    if query == 'other':
-        selected_suggestion = None
-        continue
-
-    selected_suggestion = query
-
+researcher = AssistantAgent(
+    name="researcher", 
+    llm_config={
+        "config_list": config_list,
+        "cache_seed": None,
+        "temperature": 0.0,
+    }, 
+    system_message="""
+    As a professional search expert, you possess the ability to search for any information on the web. 
+    For each user query, utilize the search results to their fullest potential to provide additional information and assistance in your response.
+    Aim to directly address the user's question, augmenting your response with insights gleaned from the search results.
+    Include relevant URL links in your response.
+""",
+)
+agentchat.register_function(
+    search,
+    caller=researcher,
+    executor=user_proxy,
+    description="Search the internet",
+)
 
 
 

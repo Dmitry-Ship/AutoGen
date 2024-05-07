@@ -1,6 +1,7 @@
+
 from autogen import config_list_from_json, GroupChat, AssistantAgent, UserProxyAgent, GroupChatManager, agentchat
 from dotenv import load_dotenv
-from tools.coding import see_file, list_dir, create_file_with_code, modify_code
+from .tools import see_file, list_dir, create_file_with_code, modify_code
 
 load_dotenv(override=True)
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
@@ -62,10 +63,3 @@ manager = GroupChatManager(groupchat=groupchat, llm_config={
         "stream": True,
         "cache_seed": None
     })
-
-chat_result = user_proxy.initiate_chat(
-    manager,
-    message="""
-You will need to work on the codebase in the current directory. For now, check out all the files, try to understand them and wait for next instructions.
-""",
-)

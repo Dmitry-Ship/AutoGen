@@ -1,5 +1,5 @@
 from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
-from tools.yt import rag_youtube_transcription
+from .tools import rag_youtube_transcription
 
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
@@ -43,28 +43,3 @@ suggester = AssistantAgent(
     Write the word 'TERMINATE' at the end of the response if the task is done.
 """,
 )
-
-
-def main():
-    """Main function"""
-    while True:
-        query = input("YouTube 📺:")
-
-        user_proxy.initiate_chats(
-            [
-                {
-                    "recipient": youtube_transcriber,
-                    "message": query,
-                    "max_turns": 2,
-                },
-                {
-                    "recipient": suggester,
-                    "message": "initial query: " + query,
-                },
-            ]
-        )
-
-
-if __name__ == "__main__":
-    main()
-

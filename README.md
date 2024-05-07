@@ -34,17 +34,17 @@ DB_URI=postgresql://<user>:<password>@<host>:<port>/<database>
 ## Commands
 
 ```
-python image_generation.py
+python -m image_generation.main
 ```
 
 ```
-python research.py
+python -m research.main
 ```
 
 ```
-python analyst.py
+python -m analyst.main
 ```
 
 ```
-python elements_creator.py
+python -m elemens_creator.main
 ```

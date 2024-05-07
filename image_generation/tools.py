@@ -1,4 +1,4 @@
-from typing_extensions import Annotated
+from typing import Annotated
 from urllib.parse import urlparse
 import requests
 from infra.art_generation import ArtGeneration
@@ -27,12 +27,14 @@ def download_image(url: str) -> tuple[int, str]:
     # Check if the request was successful
     if response.status_code == 200:
         # Open a file with the specified filename in binary-write mode
-        with open("images/" + filename, 'wb') as file:
+      if not os.path.exists("./images"):
+            os.makedirs("./images")
+      with open("./images/" + filename, 'wb') as file:
             print(f"Downloading {filename} ...")
             # Write the contents of the response to the file
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
-        return 0, f"Image saved as {filename}"
+            return 0, f"Image saved as {filename}"
     else:
         return 1, print(f"Failed to retrieve the image. Status code: {response.status_code}")
         

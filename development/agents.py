@@ -62,11 +62,3 @@ user_proxy.register_nested_chats(
     # position=4,
 )
 
-while True:
-    query = input("Develop 🛠️: ")
-
-    user_proxy.initiate_chat(
-        engineer,
-        message=query,
-        max_turns=3,
-    )

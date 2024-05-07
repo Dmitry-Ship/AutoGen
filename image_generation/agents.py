@@ -1,5 +1,5 @@
 from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
-from tools.art_generation import generate_images
+from .tools import generate_images
 
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
@@ -38,22 +38,6 @@ agentchat.register_function(
     executor=user_proxy,
     description="Generate images with a prompt",
 )
-
-while True:
-    topic = input("🏞️ : ")
-
-    user_proxy.initiate_chats([
-        {
-            "recipient": prompt_generator,
-            "message": topic,
-            "max_turns": 1,
-        },
-        {
-            "recipient": image_generator,
-            "message": "generate an image",
-            "max_turns": 2,
-        },
-    ])
 
 
 
