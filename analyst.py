@@ -1,40 +1,44 @@
-from typing_extensions import Annotated
-from autogen import config_list_from_json, GroupChat, AssistantAgent, UserProxyAgent, GroupChatManager, agentchat
-from infra.postgres import PostgresManager
-from dotenv import load_dotenv
-import os
+import json
+import tempfile
+from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
+import inquirer
+from tools.analyst_tools import run_query, get_schema
+from autogen.coding import LocalCommandLineCodeExecutor
 
-load_dotenv(override=True)
+temp_dir = tempfile.TemporaryDirectory()
+executor = LocalCommandLineCodeExecutor(
+    timeout=10,  # Timeout for each code execution in seconds.
+    work_dir=temp_dir.name,  # Use the temporary directory to store the code files.
+)
+
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
-
-db_connection = PostgresManager()
-db_connection.connect_with_url(os.getenv("DB_URI"))
 
 user_proxy = UserProxyAgent(
     name="User",
     system_message="A human admin. Execute provided code",
-    code_execution_config={"work_dir": "stories", "use_docker": False},
+    code_execution_config={"executor": executor},
     human_input_mode="NEVER",
     is_termination_msg=lambda x: "content" in x and x["content"] is not None and x["content"].rstrip().endswith("TERMINATE")
 )
-schema = db_connection.get_table_definitions_for_prompt()
 
 analyst = AssistantAgent(
     name="analyst", 
     llm_config={
         "config_list": config_list,
+        "cache_seed": None,
         "temperature": 0.0,
     }, 
-    human_input_mode="NEVER",
     system_message=f"""
-    You are an analyst. Given this database schema, suggest a query to extract data that can answer the question.
-    schema: {schema}
-    Reply 'TERMINATE' if the task is done""",
+    You are an analyst. Retrieve the database schema, suggest a query to extract data that can answer the question, pass it to the run_query function. 
+    Return the result of run_query
+    Write 'TERMINATE' if the task is done""",
 )
-
-def run_query(query: Annotated[str, "The sql query to run"]) -> Annotated[str, "The result of the query"]:
-    return db_connection.run_sql(query)
-
+agentchat.register_function(
+    get_schema,
+    caller=analyst,
+    executor=user_proxy,
+    description="Retrieve database schema",
+)
 agentchat.register_function(
     run_query,
     caller=analyst,
@@ -46,35 +50,74 @@ graph_creator = AssistantAgent(
     name="graph_creator", 
     llm_config={
         "config_list": config_list,
+        "cache_seed": None,
         "temperature": 0.0,
     }, 
-    human_input_mode="NEVER",
     system_message="""given a query result, suggest python code (in a python coding block) that will create a graph from the result. Reply 'TERMINATE' if the task is done""",
 )
 
-groupchat = GroupChat(
-    agents=[
-        user_proxy, 
-        analyst, 
-        graph_creator
-    ],
-    messages=[],
-    max_round=20,
-    allow_repeat_speaker=False,
-    speaker_selection_method="round_robin",
-)
+def get_suggestions():
+    suggester_user = UserProxyAgent(
+        name="User",
+        code_execution_config=False,
+        is_termination_msg=lambda x: "content" in x and x["content"] is not None and x["content"].rstrip().endswith("TERMINATE")
+    )
+    suggester = AssistantAgent(
+        name="suggester", 
+        llm_config={
+            "config_list": config_list,
+            "cache_seed": None,
+            "temperature": 0.0,
+        }, 
+        system_message=f"""
+        Retrieve the database schema, suggest three question that can be asked to reveal interesting correlations in the data.
 
-manager = GroupChatManager(
-    groupchat=groupchat, 
-    llm_config={
-        "config_list": config_list,
-        "temperature": 0.0,
-    })
+        Respond in JSON an nothing else: 
+        {{
+            "suggestions": ["..."]
+        }}
+    """,
+    )
+    agentchat.register_function(
+        get_schema,
+        caller=suggester,
+        executor=suggester_user,
+        description="Retrieve database schema",
+    )
+
+    suggester_user.initiate_chat(suggester, message=f"suggest three questions", max_turns=2)
+    if suggester_user.last_message()['content'] is None:
+        return []
+    
+    last_message = suggester_user.last_message()['content'].replace("TERMINATE", "").strip()
+    data = json.loads(last_message)
+    return data['suggestions']
 
 while True:
-    query = input("analyst 📈: ")
-    if query.lower() == "quit":
-        break
+    suggestions = get_suggestions()
+    answers = inquirer.prompt([
+        inquirer.List(
+            'choice',
+            message="Here are some suggestions:",
+            choices=suggestions + ["other"],
+            carousel=True
+        )
+    ])
+    query = answers['choice']
 
-    user_proxy.initiate_chat(manager, message=query)
+    if query == 'other':
+        query = input("mindmap 🗺️: ")
+
+    user_proxy.initiate_chats([
+        {
+            "recipient": analyst,
+            "message": query,
+            "max_turns": 3,
+        },
+        {
+            "recipient": graph_creator,
+            "message": "initial query: " + query,
+        },
+    ])
+
 

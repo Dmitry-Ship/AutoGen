@@ -213,47 +213,53 @@ def relative_position(square1, square2):
     else:
         return ['RIGHT', "LEFT"]
 
-def refine(structure: Annotated[str, "The json string to be refined"] ) -> Annotated[str, "The refined json string"]:
+def refine(structure: Annotated[dict, "The json string to be refined"]) -> Annotated[dict, "The refined data"]:
     # Parse the JSON string into a Python dictionary
-    data = json.loads(structure)
-    
     # Initialize a dictionary to keep track of old IDs to new IDs mapping
     id_mapping = {}
     items_mapping = {}
-    
+
     # Update IDs in 'stickers' and 'texts', and populate the id_mapping dictionary
     for category in ['stickers', 'texts']:
-        if category not in data:
+        if category not in structure:
             continue
 
-        for item in data[category]:
+        for item in structure[category]:
             old_id = item['id']
             new_id = create_db_id()
             item['id'] = new_id
             id_mapping[old_id] = new_id
             items_mapping[new_id] = item
 
+    # Update arrows with relative positions for items pointing to multiple targets
     for item in items_mapping.values():
-        if 'points_to' in item and item['points_to'] in id_mapping:
-            target_id = id_mapping[item['points_to']]
-            target = items_mapping[target_id]
-            if target is None:
-                continue
+        if 'points_to' in item:
+            updated_pointing_ids = []
+            for point_id in item['points_to']:
+                if point_id in id_mapping:
+                    updated_pointing_ids.append(id_mapping[point_id])
 
-            positions = relative_position(item, target,)
-            arrow = {
-                'start_element_id':  item['id'],
-                'start_element_side': positions[1],
-                'end_element_id': target['id'],
-                'end_element_side':  positions[0]
-            }
+            for new_id in updated_pointing_ids:
+                target = items_mapping.get(new_id)
+                if target is None:
+                    continue
 
-            if 'arrows' not in data:
-                data['arrows'] = [arrow]
-            else:
-                data['arrows'].append(arrow) 
+                positions = relative_position(item, target)
+                arrow = {
+                    'start_element_id': item['id'],
+                    'start_element_side': positions[0],
+                    'end_element_id': target['id'],
+                    'end_element_side': positions[1]
+                }
 
-    return data
+                if 'arrows' not in structure:
+                    structure['arrows'] = [arrow]
+                else:
+                    structure['arrows'].append(arrow)
+
+            item['points_to'] = updated_pointing_ids  # Update points_to with new IDs
+
+    return structure 
 
 def upsert(refined : Annotated[dict, "The json to be refined"], flip_id) -> Annotated[str, "The result of the query"]:
     if 'stickers' in refined:
@@ -295,86 +301,168 @@ def upsert(refined : Annotated[dict, "The json to be refined"], flip_id) -> Anno
     return 'OK'
 
 
+# MIND MAP
 
-def parse_markdown(md_text):
+def parse_line(line):
+    """Parse the markdown line to determine its level and clean content."""
+    if line.strip().startswith('#'):
+        return 0, clean_text(line.strip('# ').strip())
+    match = re.match(r"(\s*)-", line)
+    if match:
+        level = len(match.group(1)) // 4 + 1
+        return level, clean_text(line.strip())
+    return None, None
+
+def create_sticker(id, text, x, y, level):
+    """Create a sticker dictionary based on provided specifications."""
+    colors = {0:"#EE9595ff", 1: "#F2BD8Dff", 2: "#fff176ff", 3: "#78C99Aff"}
+    default_color = "#FFFFFFff"
+    color = colors.get(level, default_color)
+    return {
+        "id": id, "text": text, "x": x, "y": y, "color": color, 
+        "height": 100, "width": 100, "points_to": []
+    }
+
+def calculate_position(
+        root_x: Annotated[int, "The root x position"], 
+        root_y: Annotated[int, "The root y position"], 
+        level: Annotated[int, "The level of the sticker"], 
+        depth_count: Annotated[dict, "The dictionary of depth counts"], 
+        x_increment=200, y_spacing=200):
+    """Calculate position of the sticker based on its level and count."""
+    x = root_x + (level * x_increment)
+    y = root_y + (depth_count[level] * y_spacing)
+    return x, y
+
+def parse_mindmap_markdown(md_text):
     lines = md_text.strip().split('\n')
     mind_map = []
     path = []
-    depth_count = {}  # Dictionary to count the number of items at each depth
+    depth_count = {}
 
     # Canvas settings
-    canvas_width = 1000
-    canvas_height = 500
-    root_x = canvas_width // 2
-    root_y = canvas_height // 2
+    canvas_width, canvas_height = 1000, 500
+    root_x, root_y = canvas_width // 2, canvas_height // 2
 
     root_found = False
-
     for line in lines:
-        if line.strip().startswith('#') and not root_found:
-            root_content = clean_text(line.strip('# ').strip())
-            root_sticker = {
-                "id": len(mind_map) + 1,
-                "text": root_content,
-                "x": root_x,
-                "y": root_y,
-                "color": "#EE9595ff",
-                "height": 100,
-                "width": 100,
-            }
+        level, content = parse_line(line)
+        if level is None:
+            continue
+
+        if level == 0 and not root_found:
+            root_sticker = create_sticker(len(mind_map) + 1, content, root_x, root_y, level)
             mind_map.append(root_sticker)
             path.append(root_sticker)
-            depth_count[0] = 1  # Initialize root level count
+            depth_count[level] = 1
             root_found = True
             continue
 
-        if not line.strip().startswith('-'):
-            continue
+        if level > 0:
+            if level <= len(path):
+                path = path[:level]
 
-        match = re.match(r"(\s*)-", line)
-        if not match:
-            continue
+            if level not in depth_count:
+                depth_count[level] = 0
 
-        level = len(match.group(1)) // 4 + 1
+            x, y = calculate_position(root_x, root_y, level, depth_count)
+            sticker = create_sticker(len(mind_map) + 1, content, x, y, level)
+            mind_map.append(sticker)
 
-        if level < len(path):
-            path = path[:level]
+            if path:
+                path[-1]['points_to'].append(sticker['id'])
 
-        parent_id = path[-1]['id'] if path and level > 0 else None
+            path.append(sticker)
+            depth_count[level] += 1
 
-        if level not in depth_count:
-            depth_count[level] = 0
+    return {"stickers": mind_map}
 
-        # Adjust spacing to fit within canvas
-        x_increment = 150  # Adjusted horizontal shift
-        y_spacing = 60  # Adjusted vertical spacing
+# def parse_mindmap_markdown(md_text):
+#     lines = md_text.strip().split('\n')
+#     mind_map = []
+#     path = []
+#     depth_count = {}  # Dictionary to count the number of items at each depth
 
-        content = clean_text(line.strip())
-        sticker = {
-            "id": len(mind_map) + 1,
-            "text": content,
-            "x": root_x + (level * x_increment * (-1 if depth_count[level] % 2 else 1)),
-            "y": root_y + (depth_count[level] * y_spacing * (-1 if depth_count[level] % 2 else 1)),
-            "color": "#F2BD8Dff" if level == 1 else "#fff176ff" if level == 2 else "#78C99Aff" if level == 3 else "#FFFFFFff",
-            "height": 100,
-            "width": 100,
-        }
+#     # Canvas settings
+#     canvas_width = 1000
+#     canvas_height = 500
+#     root_x = canvas_width // 2
+#     root_y = canvas_height // 2
 
-        if parent_id:
-            sticker['points_to'] = parent_id
+#     root_found = False
 
-        mind_map.append(sticker)
-        path.append(sticker)
-        depth_count[level] += 1
+#     for line in lines:
+#         if line.strip().startswith('#') and not root_found:
+#             root_content = clean_text(line.strip('# ').strip())
+#             root_sticker = {
+#                 "id": len(mind_map) + 1,
+#                 "text": root_content,
+#                 "x": root_x,
+#                 "y": root_y,
+#                 "color": "#EE9595ff",
+#                 "height": 100,
+#                 "width": 100,
+#                 "points_to": []  # Initialize points_to as an empty list
+#             }
+#             mind_map.append(root_sticker)
+#             path.append(root_sticker)
+#             depth_count[0] = 1  # Initialize root level count
+#             root_found = True
+#             continue
 
-    return json.dumps({"stickers": mind_map}, indent=4)
+#         if not line.strip().startswith('-'):
+#             continue
+
+#         match = re.match(r"(\s*)-", line)
+#         if not match:
+#             continue
+
+#         level = len(match.group(1)) // 4 + 1
+
+#         if level <= len(path):
+#             path = path[:level]
+
+#         if level not in depth_count:
+#             depth_count[level] = 0  # Initialize this level in depth_count if it's not already there
+
+#         # Adjust spacing to fit within canvas
+#         x_increment = 200  # Adjusted horizontal shift
+#         y_spacing = 200  # Adjusted vertical spacing
+
+#         content = clean_text(line.strip())
+#         sticker = {
+#             "id": len(mind_map) + 1,
+#             "text": content,
+#             "x": root_x + (level * x_increment),
+#             "y": root_y + (depth_count[level] * y_spacing),
+#             "color": "#F2BD8Dff" if level == 1 else "#fff176ff" if level == 2 else "#78C99Aff" if level == 3 else "#FFFFFFff",
+#             "height": 100,
+#             "width": 100,
+#             "points_to": []
+#         }
+
+#         mind_map.append(sticker)
+#         if path and level > 0:
+#             path[-1]['points_to'].append(sticker['id'])
+#         path.append(sticker)
+#         depth_count[level] += 1  # Increment the count of elements at this level
+
+#     return {"stickers": mind_map}
 
 def clean_text(text):
     # Removes markdown symbols used for formatting
     return re.sub(r"[\*\_\-]+", "", text)
 
 def upsert_mindmap(markdown: Annotated[str, "The markdown to be upserted"], flip_id: Annotated[str, "Flip id"]) -> Annotated[str, "The result of the query"]:
-    json_string = parse_markdown(markdown)
-    refined = refine(json_string.replace('\"', '"'))
-
+    print("parsing ...")
+    structure = parse_mindmap_markdown(markdown)
+    print("refining ...")
+    refined = refine(structure)
+    print("upserting ...")
     return upsert(refined, flip_id)
+
+def get_all_text_from_flip(flip_id: Annotated[str, "Flip id"]) -> Annotated[str, "The result of the query"]:
+    return db_connection.run_sql(f"""SELECT (e.properties)->'text'->'value' AS text_value
+   FROM elements e
+   WHERE flip_id = '{flip_id}'
+   AND type IN ('STICKER', 'TEXT');""")

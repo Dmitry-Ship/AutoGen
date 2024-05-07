@@ -7,28 +7,64 @@ user_proxy = UserProxyAgent(
     name="User",
     code_execution_config=False,
     human_input_mode="NEVER",
-    is_termination_msg = lambda x: "content" in x and x["content"].endswith("TERMINATE")
+    is_termination_msg=lambda x: "content" in x and x["content"] is not None and x["content"].rstrip().endswith("TERMINATE"),
 )
 
-transcriber = AssistantAgent(
-    name="transcriber", 
+youtube_transcriber = AssistantAgent(
+    name="youtube_transcriber",
     llm_config={
         "config_list": config_list,
+        "cache_seed": None,
         "temperature": 0.0,
-    }, 
-    human_input_mode="NEVER",
-    system_message="""Given a youtube link, transcribe the video and answer the question. Write the word 'TERMINATE' at the end of the response if the task is done.""",
+    },
+    system_message="Given a youtube link, transcribe the video and return the result.",
 )
 agentchat.register_function(
     rag_youtube_transcription,
-    caller=transcriber,
+    caller=youtube_transcriber,
     executor=user_proxy,
     description="Transcribe youtube video",
 )
 
-while True:
-    query = input("YouTube 📺: ")
-    if query.lower() == "quit":
-        break
+suggester = AssistantAgent(
+    name="suggester",
+    llm_config={
+        "config_list": config_list,
+        "cache_seed": None,
+        "temperature": 0.0,
+    },
+    system_message="""
+    Based on the provided information, suggest three search queries that progressivly delve deeper into the subject.
+    Respond in JSON and nothing else:
+    {
+        "related": ["query_1", "query_2", "query_3"]
+    }
 
-    user_proxy.initiate_chat(transcriber, message=query)
+    Write the word 'TERMINATE' at the end of the response if the task is done.
+""",
+)
+
+
+def main():
+    """Main function"""
+    while True:
+        query = input("YouTube 📺:")
+
+        user_proxy.initiate_chats(
+            [
+                {
+                    "recipient": youtube_transcriber,
+                    "message": query,
+                    "max_turns": 2,
+                },
+                {
+                    "recipient": suggester,
+                    "message": "initial query: " + query,
+                },
+            ]
+        )
+
+
+if __name__ == "__main__":
+    main()
+

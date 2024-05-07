@@ -4,7 +4,7 @@ import time
 
 class ArtGeneration:
     def __init__(self, email: str, password: str, model_id=138):
-        self.url_base = 'https://artgeneration.me/api'
+        self.url_base = 'https://api-gateway.artgeneration.me/api'
         self.email = email
         self.password = password
         self.base_data = {
@@ -12,21 +12,21 @@ class ArtGeneration:
             "width": 1216,
             "height": 832,
             "is_private": True,
-            "num_inference_steps": 31,
+            "num_inference_steps": 41,
             "guidance_scale": 5,
             "scheduler_id": "d5a6df48-3f33-49e3-8936-a89c3146167b",
             "self_attention": False,
             "clip_skip": 1,
             "highres_fix": False,
             "sharpness": 2,
-            "samples": 1
+            "samples": 2
         } 
 
         self.user_id = None
         result = self.authenticate()
     
     def authenticate(self):
-        auth_url = f"{self.url_base}/auth/email/auth"
+        auth_url = f"{self.url_base}/v1/user/auth"
         auth_data = {
             "email": self.email,
             "password": self.password
@@ -34,9 +34,9 @@ class ArtGeneration:
         print("Authenticating into ArtGeneration...")
         response = requests.post(auth_url, json=auth_data).json()
         
-        if "data" in response and "user" in response["data"]:
-            self.base_data["token"] = response["data"]["user"]["token"]
-            self.user_id = response["data"]["user"]["id"]
+        if "data" in response:
+            self.base_data["token"] = response["data"]["token"]
+            self.user_id = response["data"]["id"]
             print("Authentication Successful")
             return True, "Authentication Successful"
         else:
@@ -57,7 +57,7 @@ class ArtGeneration:
         response = requests.get(f"{self.url_base}/v1/image/fetch/", params=params)
         return response.json()
 
-    def generate_image(self, prompt: Annotated[str, "Prompt"]) -> Annotated[tuple[int, str], "Status code and message"]:
+    def generate_images(self, prompt: Annotated[str, "Prompt"]) -> Annotated[tuple[int, list[str]], "Status code and message"]:
         request_response = self.send_request(prompt)
         generation_id = request_response["data"]["generation_id"]
 
@@ -73,6 +73,6 @@ class ArtGeneration:
             for generation in generation_list:
                 if generation["id"] == generation_id and "image_list" in generation:
                     if len(generation["image_list"]) > 0:
-                        return 0, generation["image_list"][0]['link']
+                        return 0, generation["image_list"]
         return 1, "Error: Image generation timed out or not found."
 

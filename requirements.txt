@@ -10,6 +10,7 @@ attrs==23.2.0
 backoff==2.2.1
 bcrypt==4.1.2
 beautifulsoup4==4.12.3
+blessed==1.20.0
 Brotli==1.1.0
 bs4==0.0.2
 build==1.2.1
@@ -35,6 +36,7 @@ distro==1.9.0
 docker==7.0.0
 docopt==0.6.2
 duckduckgo_search==5.3.0
+editor==1.6.6
 executing==2.0.1
 fastapi==0.110.2
 feedfinder2==0.0.4
@@ -68,6 +70,7 @@ idna==3.7
 importlib-metadata==7.0.0
 importlib_resources==6.4.0
 iniconfig==2.0.0
+inquirer==3.2.4
 ipython==8.23.0
 jedi==0.19.1
 jieba3k==0.35.1
@@ -105,6 +108,7 @@ mypy-extensions==1.0.0
 networkx==3.3
 newspaper3k==0.2.8
 nltk==3.8.1
+notion-client==2.2.1
 numpy==1.26.4
 oauthlib==3.2.2
 onnxruntime==1.17.3
@@ -122,6 +126,7 @@ opentelemetry-util-http==0.45b0
 orjson==3.10.1
 overrides==7.7.0
 packaging==23.2
+pandas==2.2.2
 parso==0.8.4
 pexpect==4.9.0
 pillow==10.3.0
@@ -143,6 +148,7 @@ pydantic==2.7.0
 pydantic_core==2.18.1
 pydyf==0.10.0
 pyee==11.1.0
+pygame==2.5.2
 Pygments==2.17.2
 PyMuPDF==1.24.2
 PyMuPDFb==1.24.1
@@ -158,13 +164,16 @@ python-docx==1.1.2
 python-dotenv==1.0.1
 python-multipart==0.0.9
 python-ulid==2.4.0.post0
+pytz==2024.1
 PyYAML==6.0.1
+readchar==4.0.6
 regex==2024.4.16
 requests==2.31.0
 requests-file==2.0.0
 requests-oauthlib==2.0.0
 rich==13.7.1
 rsa==4.9
+runs==1.2.2
 safetensors==0.4.3
 scikit-learn==1.4.2
 scipy==1.13.0
@@ -194,6 +203,7 @@ transformers==4.40.0
 typer==0.12.3
 typing-inspect==0.9.0
 typing_extensions==4.11.0
+tzdata==2024.1
 uritemplate==4.1.1
 urllib3==2.2.1
 uvicorn==0.29.0
@@ -205,6 +215,7 @@ webencodings==0.5.1
 websocket-client==1.7.0
 websockets==12.0
 wrapt==1.16.0
+xmod==1.8.1
 yarl==1.9.4
 youtube-transcript-api==0.6.2
 zipp==3.18.1

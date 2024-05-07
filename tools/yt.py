@@ -3,26 +3,6 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from typing_extensions import Annotated
 from .common import get_summary
 
-def get_video_id(url):
-    """
-    Extracts the video ID from a YouTube URL.
-    Args:
-        url: The YouTube URL as a string.
-    Returns:
-        The extracted video ID as a string, or None if the URL is invalid.
-    """
-    # Define a regular expression pattern to match different YouTube URL formats
-    pattern = r"(?:v=|be/|/watch\?v=|\?feature=youtu.be/)([\w-]+)"
-
-    # Use re.search to find the first match of the pattern in the URL
-    match = re.search(pattern, url)
-
-    # If a match is found, return the captured group (video ID)
-    if match:
-        return match.group(1)
-    else:
-        return None
-    
 def retreive_youtube_transcription(youtube_url: Annotated[str, "The youtube url to retreive transcriptions from"]) -> Annotated[str, "The combined transcript"]:
     """
     Useful to search for video transcriptions from the given url
@@ -30,12 +10,16 @@ def retreive_youtube_transcription(youtube_url: Annotated[str, "The youtube url 
     :param youtube_url: str, youtube url to retreive transcriptions
     """
 
-    # Extract the video id from the youtube link
-    video_id = get_video_id(youtube_url)
+    pattern = r"(?:v=|be/|/watch\?v=|\?feature=youtu.be/)([\w-]+)"
 
+    match = re.search(pattern, youtube_url)
+
+    if not match:
+        return "Error: Invalid YouTube URL"
+
+    video_id = match.group(1)
     transcript = YouTubeTranscriptApi.get_transcript(video_id)
 
-    # Combine the text into single text
     combined_transcript = " ".join([item.get("text", "") for item in transcript])
 
     return combined_transcript

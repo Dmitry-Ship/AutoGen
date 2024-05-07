@@ -8,7 +8,6 @@ config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 user_proxy = UserProxyAgent(
     name="User",
     system_message="A human admin.",
-    human_input_mode="ALWAYS",
     code_execution_config=False,
     is_termination_msg=lambda x: x.get("content", "").find("TERMINATE") >= 0,
 )
@@ -67,6 +66,6 @@ manager = GroupChatManager(groupchat=groupchat, llm_config={
 chat_result = user_proxy.initiate_chat(
     manager,
     message="""
-You will need to work the codebase in the current directory. For now, check out all the files, try to understand them and wait for next instructions.
+You will need to work on the codebase in the current directory. For now, check out all the files, try to understand them and wait for next instructions.
 """,
 )

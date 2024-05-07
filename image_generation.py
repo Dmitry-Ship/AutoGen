@@ -1,5 +1,5 @@
-from autogen import config_list_from_json, GroupChat, AssistantAgent, UserProxyAgent, GroupChatManager, agentchat
-from tools.art_generation import generate_image
+from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
+from tools.art_generation import generate_images
 
 config_list = config_list_from_json(env_or_file="OAI_CONFIG_LIST")
 
@@ -16,12 +16,11 @@ prompt_generator = AssistantAgent(
     llm_config={
         "config_list": config_list,
         "cache_seed": None,
-        # "stream": True,
         "temperature": 1.0,
     }, 
     system_message="""Given a topic, write an image description.
-Follow this pattern: [type of shot] of [subject], [setting], [items in the scene], [lighting], shot on [camera]
-Reply 'TERMINATE' if the task is done""",
+Follow this pattern: [type of shot] of [subject], [description of the subject], [setting], [items in the scene], [lighting], shot on [camera]
+Write 'TERMINATE' if the task is done""",
 )
     
 image_generator = AssistantAgent(
@@ -29,45 +28,32 @@ image_generator = AssistantAgent(
     llm_config={
         "config_list": config_list,
         "cache_seed": None,
-        # "stream": True,
         "temperature": 0.0,
     }, 
-    human_input_mode="NEVER",
-    system_message="""Given image descriptions, generate images. Reply 'TERMINATE' if the task is done""",
+    system_message="""Given image description, generate images. Write the word 'TERMINATE' if the task is done""",
 )
 agentchat.register_function(
-    generate_image,
+    generate_images,
     caller=image_generator,
     executor=user_proxy,
-    description="Generate an image with a prompt",
+    description="Generate images with a prompt",
 )
-
-groupchat = GroupChat(
-    agents=[
-        user_proxy, 
-        prompt_generator, 
-        image_generator,
-    ],
-    messages=[],
-    max_round=10,
-    allow_repeat_speaker=False,
-    speaker_selection_method="round_robin",
-)
-
-manager = GroupChatManager(
-    groupchat=groupchat, 
-    llm_config={
-        "config_list": config_list,
-        "stream": True,
-        "temperature": 0.0,
-    })
 
 while True:
     topic = input("🏞️ : ")
-    if topic.lower() == "quit":
-        break
 
-    user_proxy.initiate_chat(manager, message=topic)
+    user_proxy.initiate_chats([
+        {
+            "recipient": prompt_generator,
+            "message": topic,
+            "max_turns": 1,
+        },
+        {
+            "recipient": image_generator,
+            "message": "generate an image",
+            "max_turns": 2,
+        },
+    ])
 
 
 
