@@ -1,4 +1,3 @@
-import json
 import tempfile
 from autogen import config_list_from_json, AssistantAgent, UserProxyAgent, agentchat
 from .tools import run_query, get_schema
@@ -28,15 +27,13 @@ analyst = AssistantAgent(
         "temperature": 0.0,
     }, 
     system_message=f"""
-    You are an analyst. Retrieve the database schema, suggest a query to extract data that can answer the question, pass it to the run_query function. 
-    Return the result of run_query
+    You are an analyst. Your goal is to solve a given by retrieving data from the database.
+    Here is the schema of the database:
+    {get_schema()}
+
+    Use run_query to retrieve data from the database. 
+    If you are asked to visualize the data, write python code (in a python coding block) that will create a graph visualization of provided data.
     Write 'TERMINATE' if the task is done""",
-)
-agentchat.register_function(
-    get_schema,
-    caller=analyst,
-    executor=user_proxy,
-    description="Retrieve database schema",
 )
 agentchat.register_function(
     run_query,
@@ -45,51 +42,8 @@ agentchat.register_function(
     description="Run sql query",
 )
 
-graph_creator = AssistantAgent(
-    name="graph_creator", 
-    llm_config={
-        "config_list": config_list,
-        "cache_seed": None,
-        "temperature": 0.0,
-    }, 
-    system_message="""given a query result, suggest python code (in a python coding block) that will create a graph from the result. Reply 'TERMINATE' if the task is done""",
-)
 
-def get_suggestions():
-    suggester_user = UserProxyAgent(
-        name="User",
-        code_execution_config=False,
-        is_termination_msg=lambda x: "content" in x and x["content"] is not None and x["content"].rstrip().endswith("TERMINATE")
-    )
-    suggester = AssistantAgent(
-        name="suggester", 
-        llm_config={
-            "config_list": config_list,
-            "cache_seed": None,
-            "temperature": 0.0,
-        }, 
-        system_message=f"""
-        Retrieve the database schema, suggest three question that can be asked to reveal interesting correlations in the data.
 
-        Respond in JSON an nothing else: 
-        {{
-            "suggestions": ["..."]
-        }}
-    """,
-    )
-    agentchat.register_function(
-        get_schema,
-        caller=suggester,
-        executor=suggester_user,
-        description="Retrieve database schema",
-    )
 
-    suggester_user.initiate_chat(suggester, message=f"suggest three questions", max_turns=2)
-    if suggester_user.last_message()['content'] is None:
-        return []
-    
-    last_message = suggester_user.last_message()['content'].replace("TERMINATE", "").strip()
-    data = json.loads(last_message)
-    return data['suggestions']
 
 

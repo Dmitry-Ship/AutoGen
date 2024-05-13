@@ -7,7 +7,7 @@ load_dotenv()
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 
-def ask_context(question: Annotated[str, "Question to specify context"]) -> Annotated[str, "Additional context"]:
+def ask_context(question: Annotated[str, "Additional question to specify context"]) -> Annotated[str, "Additional context"]:
     additional_query = input("❓ " + question + ": ")
     return additional_query
 

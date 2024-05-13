@@ -25,11 +25,11 @@ engineer = AssistantAgent(
     llm_config={
         "config_list": config_list,
         "temperature": 0.0,
-        "stream": True,
+        # "stream": True,
         "cache_seed": None
     },
     system_message="""
-    I'm an Engineer. I'm expert in python programming.
+    You are a professional python programmer. You goal is to write code that satisfies the provided requirements, using best practices. 
     """,
 )
 
@@ -38,11 +38,11 @@ code_reviewer = AssistantAgent(
     llm_config={
         "config_list": config_list,
         "temperature": 0.0,
-        "stream": True,
+        # "stream": True,
         "cache_seed": None
     },
     system_message="""
-   I'm code reviewer. I look through the provded code and provide recommendations on how to improve it, for example: magic numbers, unused variables, readability, etc.
+    You are a code reviewer. You goal is to review the provded code and provide recommendations on how to improve it, for example: magic numbers, unused variables, readability, etc.
     """,
 )
 

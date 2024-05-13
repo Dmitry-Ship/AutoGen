@@ -17,7 +17,7 @@ youtube_transcriber = AssistantAgent(
         "cache_seed": None,
         "temperature": 0.0,
     },
-    system_message="Given a youtube link, transcribe the video and return the result.",
+    system_message="Your goal is to answer questions about a given youtube video.",
 )
 agentchat.register_function(
     rag_youtube_transcription,

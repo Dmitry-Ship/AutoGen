@@ -11,18 +11,6 @@ user_proxy = UserProxyAgent(
     is_termination_msg=lambda x: "content" in x and x["content"] is not None and x["content"].rstrip().endswith("TERMINATE")
 )
 
-prompt_generator = AssistantAgent(
-    name="prompt_generator", 
-    llm_config={
-        "config_list": config_list,
-        "cache_seed": None,
-        "temperature": 1.0,
-    }, 
-    system_message="""Given a topic, write an image description.
-Follow this pattern: [type of shot] of [subject], [description of the subject], [setting], [items in the scene], [lighting], shot on [camera]
-Write 'TERMINATE' if the task is done""",
-)
-    
 image_generator = AssistantAgent(
     name="image_generator", 
     llm_config={
@@ -30,7 +18,7 @@ image_generator = AssistantAgent(
         "cache_seed": None,
         "temperature": 0.0,
     }, 
-    system_message="""Given image description, generate images. Write the word 'TERMINATE' if the task is done""",
+    system_message="""You are a image creator. Your goal is to generate images with a given theme.""",
 )
 agentchat.register_function(
     generate_images,

@@ -1,10 +1,9 @@
 import json
-from typing_extensions import Annotated, Optional
+from typing import Annotated, Optional
 from infra.postgres import PostgresManager
 from dotenv import load_dotenv
 import os
 from ulid import ULID
-from typing import Annotated, Optional
 import json
 import re
 

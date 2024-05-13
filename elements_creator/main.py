@@ -1,10 +1,17 @@
 
+import json
 import inquirer
 import os
-from .agents import get_suggestions, mindmap_creator, user_proxy
+from .agents import suggester, suggester_user, mindmap_creator, user_proxy
 
 flip_id = os.getenv("FLIP_ID")
 
+
+def get_suggestions(flip_id):
+    suggester_user.initiate_chat(suggester, message=f"flip_id: '{flip_id}'", max_turns=2)
+    last_message = suggester_user.last_message()['content'].replace("TERMINATE", "").strip()
+    data = json.loads(last_message)
+    return data['suggestions']
 
 while True:
     suggestions = get_suggestions(flip_id=flip_id)
